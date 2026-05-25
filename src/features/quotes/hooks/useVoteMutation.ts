@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { postVote } from '../services/api';
-import type { QuoteDto, VoteValue } from '../../../shared/types/quote';
+import type { QuoteDto } from '../../../shared/types/quote';
 
 export const useVoteMutation = () => {
   const queryClient = useQueryClient();
