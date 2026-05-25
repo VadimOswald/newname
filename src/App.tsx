@@ -1,35 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { compliments } from './data/compliments';
 import { insults } from './data/insults';
+import { useQuote } from './features/quotes/hooks/useQuote';
+import { useVoteMutation } from './features/quotes/hooks/useVoteMutation';
+import { VotePanel } from './features/quotes/components/VotePanel';
+import { getTelegramUserId } from './shared/lib/telegram';
 import './App.css';
-
-declare global {
-  interface Window {
-    Telegram?: {
-      WebApp: {
-        ready: () => void;
-        expand: () => void;
-        HapticFeedback?: {
-          impactOccurred: (style: string) => void;
-          notificationOccurred: (style: string) => void;
-        };
-        openTelegramLink?: (url: string) => void;
-        switchInlineQuery?: (query: string, chooseChatTypes?: string[]) => void;
-        initDataUnsafe?: {
-          start_param?: string;
-          query_id?: string;
-          user?: {
-            id?: number;
-            first_name?: string;
-            last_name?: string;
-            username?: string;
-            language_code?: string;
-          };
-        };
-      };
-    };
-  }
-}
 
 type Screen = 'splash' | 'home' | 'loading' | 'result' | 'share';
 type ResultType = 'compliment' | 'insult' | null;
@@ -53,6 +29,9 @@ function App() {
   const [resultType, setResultType] = useState<ResultType>(null);
   const [loadingSub, setLoadingSub] = useState<string>('');
   const [currentTime, setCurrentTime] = useState<string>('');
+
+  const { data: activeQuote, refetch: refetchQuote } = useQuote(currentScreen === 'loading');
+  const voteMutation = useVoteMutation();
 
   useEffect(() => {
     // Инициализация Telegram WebApp
@@ -108,10 +87,12 @@ function App() {
 
   const handleCompliment = useCallback(() => {
     setCurrentScreen('loading');
+    void refetchQuote();
+    void refetchQuote();
     setLoadingSub(loadingSubPhrases[Math.floor(Math.random() * loadingSubPhrases.length)]);
     
     setTimeout(() => {
-      const phrase = getRandomPhrase(compliments);
+      const phrase = activeQuote?.type === 'compliment' ? activeQuote.text : getRandomPhrase(compliments);
       setResultText(phrase);
       setResultType('compliment');
       setCurrentScreen('result');
@@ -123,12 +104,19 @@ function App() {
     setLoadingSub(loadingSubPhrases[Math.floor(Math.random() * loadingSubPhrases.length)]);
     
     setTimeout(() => {
-      const phrase = getRandomPhrase(insults);
+      const phrase = activeQuote?.type === 'insult' ? activeQuote.text : getRandomPhrase(insults);
       setResultText(phrase);
       setResultType('insult');
       setCurrentScreen('result');
     }, 2800);
   }, []);
+
+
+  const handleVote = useCallback((value: 'like' | 'dislike') => {
+    const userId = getTelegramUserId();
+    if (!userId || !activeQuote) return;
+    voteMutation.mutate({ quoteId: activeQuote.id, value, telegramUserId: userId });
+  }, [activeQuote, voteMutation]);
 
   const handleGoHome = useCallback(() => {
     setCurrentScreen('home');
@@ -361,6 +349,10 @@ const fallbackShare = () => {
               {renderAnimatedText(resultText)}
             </div>
           </div>
+
+          {activeQuote && (
+            <VotePanel quote={activeQuote} loading={voteMutation.isPending} onVote={handleVote} />
+          )}
           <div className="result-actions">
             <button className="btn-again" onClick={handleGoHome}>Ещё</button>
             <button className="btn-share-result" onClick={handleShare}>Поделиться</button>
