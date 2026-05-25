@@ -1,0 +1,546 @@
+
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#030303">
+<title>ОРАКУЛ — AI-оракул</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:oklch(3.5% 0.005 100);
+  --surface:oklch(9% 0.008 100);
+  --surface-hover:oklch(13% 0.01 100);
+  --fg:oklch(88% 0.008 95);
+  --fg-dim:oklch(55% 0.015 100);
+  --muted:oklch(40% 0.015 100);
+  --border:oklch(17% 0.015 100);
+  --border-light:oklch(25% 0.015 100);
+  --accent:oklch(62% 0.24 290);
+  --accent-dim:oklch(40% 0.18 290);
+  --secondary:oklch(56% 0.16 250);
+  --secondary-dim:oklch(35% 0.12 250);
+  --danger:oklch(50% 0.20 25);
+  --danger-dim:oklch(32% 0.15 25);
+  --glow:oklch(60% 0.10 350);
+  --glow-dim:oklch(35% 0.08 350);
+  --font-display:'Times New Roman','Iowan Old Style',Georgia,serif;
+  --font-body:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',Menlo,monospace;
+  --font-ui:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --ease-out-expo:cubic-bezier(.16,1,.3,1);
+  --ease-in-expo:cubic-bezier(.7,0,.84,0);
+  --duration-slow:.8s;
+  --duration-med:.5s;
+  --duration-fast:.25s
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--fg);font-family:var(--font-body);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+#app{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+
+/* screen system */
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;opacity:0;pointer-events:none;transition:opacity var(--duration-med) var(--ease-out-expo),transform var(--duration-med) var(--ease-out-expo)}
+.screen.active{opacity:1;pointer-events:auto}
+.screen.slide-up{transform:translateY(24px)}
+.screen.active.slide-up{transform:translateY(0)}
+.screen.slide-down{transform:translateY(-24px)}
+.screen.active.slide-down{transform:translateY(0)}
+.screen.scale-in{transform:scale(.96)}
+.screen.active.scale-in{transform:scale(1)}
+
+/* splash */
+#splash{background:var(--bg);z-index:10;justify-content:center;gap:0}
+#splash::after{content:'';position:absolute;left:0;right:0;width:100%;height:2px;background:linear-gradient(90deg,transparent,var(--accent-dim),var(--accent),var(--accent-dim),transparent);opacity:0;animation:scan-fade-all 3s ease-in-out infinite;pointer-events:none;box-shadow:0 0 20px var(--accent-dim),0 0 40px oklch(40% 0.18 290 / .2)}
+@keyframes scan-fade-all{
+  0%,100%{opacity:0;top:35%}
+  50%{opacity:.5;top:65%}
+}
+.splash-content{text-align:center;display:flex;flex-direction:column;align-items:center;gap:32px}
+.glitch-wrapper{position:relative;display:inline-block}
+.glitch-text{font-family:var(--font-display);font-size:clamp(48px,12vw,80px);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--fg);position:relative;animation:glitch-flicker 3s var(--ease-out-expo) infinite}
+.glitch-text::before,.glitch-text::after{content:attr(data-text);position:absolute;top:0;left:0;width:100%;height:100%;opacity:0}
+.glitch-text::before{color:var(--accent);animation:glitch-shift .4s var(--ease-out-expo) infinite;clip-path:inset(0 0 60% 0)}
+.glitch-text::after{color:var(--danger);animation:glitch-shift .6s var(--ease-out-expo) infinite reverse;clip-path:inset(60% 0 0 0)}
+@keyframes glitch-shift{
+  0%{transform:translate(0);opacity:.3}
+  20%{transform:translate(-3px,2px);opacity:.6}
+  40%{transform:translate(3px,-1px);opacity:.2}
+  60%{transform:translate(-1px,3px);opacity:.5}
+  80%{transform:translate(2px,-2px);opacity:.3}
+  100%{transform:translate(0);opacity:0}
+}
+@keyframes glitch-flicker{
+  0%,100%{opacity:1}
+  5%{opacity:.8}
+  10%{opacity:1}
+  92%{opacity:1}
+  94%{opacity:.3}
+  96%{opacity:1}
+  97%{opacity:.6}
+  98%{opacity:1}
+}
+.splash-subtitle{font-family:var(--font-body);font-size:14px;color:var(--fg-dim);letter-spacing:.15em;text-transform:uppercase;opacity:0;animation:fade-in .6s var(--ease-out-expo) .8s forwards}
+.splash-loader{display:flex;gap:8px;align-items:center;opacity:0;animation:fade-in .6s var(--ease-out-expo) .4s forwards}
+.splash-loader .dot{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:dot-pulse 1.4s var(--ease-out-expo) infinite}
+.splash-loader .dot:nth-child(2){animation-delay:.2s}
+.splash-loader .dot:nth-child(3){animation-delay:.4s}
+@keyframes dot-pulse{
+  0%,100%{background:var(--muted);transform:scale(1)}
+  50%{background:var(--accent);transform:scale(1.4);box-shadow:0 0 12px var(--accent-dim)}
+}
+.splash-status{font-size:12px;color:var(--fg-dim);letter-spacing:.1em;margin-top:8px}
+
+/* home */
+#home{background:radial-gradient(ellipse at 50% 80%,oklch(25% 0.08 290 / .15),transparent 70%),radial-gradient(ellipse at 50% 20%,oklch(20% 0.05 250 / .1),transparent 60%),var(--bg);z-index:5;gap:0}
+.home-content{text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;max-width:340px;padding-bottom:48px}
+.brand-badge{font-family:var(--font-body);font-size:11px;color:var(--accent);letter-spacing:.2em;text-transform:uppercase;opacity:.7;margin-bottom:4px}
+.brand-title{font-family:var(--font-display);font-size:clamp(36px,10vw,56px);font-weight:700;letter-spacing:.06em;color:var(--fg);line-height:1.1}
+.brand-subtitle{font-family:var(--font-body);font-size:13px;color:var(--fg-dim);letter-spacing:.08em;line-height:1.6;max-width:260px;margin-bottom:32px}
+.btn-group{display:flex;flex-direction:column;gap:16px;width:100%;margin-top:8px}
+.btn{position:relative;display:flex;align-items:center;justify-content:center;width:100%;padding:20px 24px;border-radius:16px;border:1px solid var(--border);font-family:var(--font-ui);font-size:17px;font-weight:600;letter-spacing:.02em;cursor:pointer;transition:transform .15s var(--ease-out-expo),box-shadow .25s var(--ease-out-expo),border-color .25s var(--ease-out-expo),background .25s var(--ease-out-expo);-webkit-tap-highlight-color:transparent;outline:none;overflow:hidden}
+.btn::before{content:'';position:absolute;inset:0;border-radius:inherit;opacity:0;transition:opacity .3s var(--ease-out-expo)}
+.btn:hover::before{opacity:1}
+.btn:active{transform:scale(.97)}
+.btn-support{background:linear-gradient(135deg,oklch(15% 0.06 290),oklch(10% 0.04 290));border-color:var(--border-light);color:var(--fg)}
+.btn-support::before{background:radial-gradient(ellipse at 50% 0,var(--accent-dim),transparent 70%)}
+.btn-support:hover{border-color:var(--accent-dim);box-shadow:0 0 30px var(--accent-dim),0 0 60px oklch(40% 0.18 290 / .1)}
+.btn-support .btn-icon{color:var(--accent)}
+.btn-support .btn-label{color:var(--fg)}
+.btn-support .btn-sub{color:var(--accent);font-size:13px}
+.btn-destroy{background:linear-gradient(135deg,oklch(15% 0.06 25),oklch(10% 0.04 25));border-color:var(--border-light);color:var(--fg)}
+.btn-destroy::before{background:radial-gradient(ellipse at 50% 0,var(--danger-dim),transparent 70%)}
+.btn-destroy:hover{border-color:var(--danger-dim);box-shadow:0 0 30px var(--danger-dim),0 0 60px oklch(32% 0.15 25 / .1)}
+.btn-destroy .btn-icon{color:var(--danger)}
+.btn-destroy .btn-sub{color:var(--danger);font-size:13px}
+.btn-inner{display:flex;flex-direction:column;align-items:center;gap:2px;position:relative;z-index:1}
+.btn-icon{font-size:22px;line-height:1;margin-bottom:2px}
+.btn-label{font-size:17px;font-weight:600;letter-spacing:.02em}
+.btn-sub{font-size:12px;opacity:.7;font-weight:400;letter-spacing:.04em}
+.home-footer{position:absolute;bottom:48px;left:0;right:0;text-align:center;font-size:11px;color:var(--muted);letter-spacing:.08em;font-family:var(--font-body)}
+.ambient-particles{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.particle{position:absolute;width:2px;height:2px;border-radius:50%;animation:particle-float linear infinite;opacity:0}
+@keyframes particle-float{
+  0%{transform:translateY(100vh) translateX(0);opacity:0}
+  10%{opacity:.6}
+  90%{opacity:.2}
+  100%{transform:translateY(-10vh) translateX(40px);opacity:0}
+}
+
+/* loading */
+#loading{background:radial-gradient(ellipse at 50% 50%,oklch(20% 0.10 290 / .12),transparent 70%),var(--bg);z-index:6;gap:0}
+.loading-content{text-align:center;display:flex;flex-direction:column;align-items:center;gap:32px}
+.loading-brain{width:48px;height:48px;position:relative;margin-bottom:8px}
+.loading-brain-ring{position:absolute;inset:0;border:2px solid var(--accent-dim);border-radius:50%;animation:ring-pulse 2s var(--ease-out-expo) infinite}
+.loading-brain-ring:nth-child(2){border-color:var(--secondary-dim);animation-delay:.6s;transform:scale(1.3)}
+.loading-brain-ring:nth-child(3){border-color:var(--glow-dim);animation-delay:1.2s;transform:scale(1.6)}
+@keyframes ring-pulse{
+  0%{opacity:.6;transform:scale(1)}
+  100%{opacity:0;transform:scale(2.2)}
+}
+.loading-text{font-family:var(--font-display);font-size:clamp(20px,5vw,28px);letter-spacing:.03em;line-height:1.4;color:var(--fg)}
+.loading-sub{font-family:var(--font-body);font-size:13px;color:var(--fg-dim);letter-spacing:.06em}
+.loading-glitch{position:relative;display:inline-block;animation:glitch-flicker-short .8s ease-in-out infinite}
+@keyframes glitch-flicker-short{
+  0%,100%{opacity:1}
+  10%{opacity:.4}
+  12%{opacity:1}
+  90%{opacity:1}
+  94%{opacity:.3}
+  96%{opacity:1}
+}
+.loading-progress{width:200px;height:2px;background:var(--border);border-radius:2px;overflow:hidden;position:relative}
+.loading-progress-bar{height:100%;background:linear-gradient(90deg,var(--accent-dim),var(--accent),var(--secondary-dim));border-radius:2px;animation:progress-load 2.5s var(--ease-out-expo) forwards;width:0%}
+@keyframes progress-load{
+  0%{width:0%}
+  30%{width:22%}
+  60%{width:45%}
+  80%{width:65%}
+  95%{width:88%}
+  100%{width:100%}
+}
+
+/* result */
+#result{background:radial-gradient(ellipse at 50% 40%,var(--result-glow-color) 0%,transparent 70%),var(--bg);z-index:7}
+.result-content{text-align:center;display:flex;flex-direction:column;align-items:center;gap:48px;width:100%;max-width:360px}
+.result-type-badge{font-family:var(--font-body);font-size:11px;letter-spacing:.2em;text-transform:uppercase;padding:8px 18px;border:1px solid var(--result-color);border-radius:100px;color:var(--result-color);opacity:0;animation:badge-appear .5s var(--ease-out-expo) forwards}
+.result-card{width:100%;padding:40px 28px;border-radius:20px;border:1px solid var(--border-light);background:oklch(12% 0.01 100 / .7);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);position:relative;overflow:hidden;opacity:0;animation:card-appear .8s var(--ease-out-expo) .15s forwards}
+.result-card::before{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at center,var(--result-glow-color) 0%,transparent 50%);opacity:.06;pointer-events:none}
+.result-card-glow{position:absolute;inset:-2px;border-radius:22px;opacity:0;z-index:-1;animation:glow-pulse 3s ease-in-out .8s infinite}
+.result-card-glow.support{box-shadow:0 0 40px oklch(62% 0.24 290 / .15),inset 0 0 40px oklch(62% 0.24 290 / .05)}
+.result-card-glow.destroy{box-shadow:0 0 40px oklch(50% 0.20 25 / .15),inset 0 0 40px oklch(50% 0.20 25 / .05)}
+@keyframes glow-pulse{
+  0%,100%{opacity:.5}
+  50%{opacity:1}
+}
+.result-phrase{font-family:var(--font-display);font-size:clamp(20px,6vw,28px);line-height:1.35;letter-spacing:.01em;color:var(--fg);position:relative;z-index:1;text-wrap:pretty;cursor:pointer;transition:opacity .2s}
+.result-phrase:active{opacity:.7}
+.result-phrase .char{opacity:0;animation:char-appear .06s var(--ease-out-expo) forwards}
+@keyframes char-appear{to{opacity:1}}
+.result-actions{display:flex;flex-direction:column;gap:12px;width:100%;max-width:320px;opacity:0;animation:fade-in .5s var(--ease-out-expo) .9s forwards}
+.btn-again,.btn-share{width:100%;padding:18px 24px;border-radius:14px;font-family:var(--font-ui);font-size:15px;font-weight:600;letter-spacing:.02em;cursor:pointer;transition:transform .15s var(--ease-out-expo),box-shadow .25s var(--ease-out-expo),border-color .25s var(--ease-out-expo),background .25s var(--ease-out-expo);outline:none;-webkit-tap-highlight-color:transparent;border:1px solid}
+.btn-again{background:transparent;border-color:var(--border-light);color:var(--fg)}
+.btn-again:hover{border-color:var(--accent-dim);box-shadow:0 0 20px var(--accent-dim)}
+.btn-again:active{transform:scale(.97)}
+.btn-share{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-share:hover{box-shadow:0 0 30px var(--accent-dim)}
+.btn-share:active{transform:scale(.97)}
+@keyframes badge-appear{
+  to{opacity:1;transform:none}
+  from{opacity:0;transform:translateY(8px)}
+}
+@keyframes card-appear{
+  to{opacity:1;transform:none}
+  from{opacity:0;transform:translateY(20px) scale(.97)}
+}
+
+/* share overlay */
+#share{z-index:20;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.share-content{display:flex;flex-direction:column;align-items:center;gap:24px;width:100%;max-width:340px}
+.share-card{width:100%;padding:48px 28px 36px;border-radius:24px;border:1px solid var(--border-light);background:linear-gradient(180deg,oklch(12% 0.01 100 / .9),var(--bg));backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);position:relative;overflow:hidden;opacity:0;animation:card-appear .6s var(--ease-out-expo) forwards}
+.share-card::before{content:'';position:absolute;top:-80%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at center,var(--result-glow-color) 0%,transparent 60%);opacity:.08;pointer-events:none}
+.share-brand{font-family:var(--font-body);font-size:10px;letter-spacing:.25em;text-transform:uppercase;color:var(--muted);margin-bottom:24px}
+.share-divider{width:40px;height:1px;background:var(--border-light);margin:0 auto 24px}
+.share-phrase{font-family:var(--font-display);font-size:clamp(18px,5vw,24px);line-height:1.4;letter-spacing:.01em;color:var(--fg);margin-bottom:8px}
+.share-type{font-family:var(--font-body);font-size:12px;letter-spacing:.15em;color:var(--result-color);margin-bottom:32px}
+.share-footer{font-family:var(--font-body);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.share-actions{display:flex;flex-direction:column;gap:12px;width:100%;max-width:320px}
+.share-close{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:16px 24px;border-radius:14px;background:var(--surface);border:1px solid var(--border);color:var(--fg-dim);font-family:var(--font-ui);font-size:15px;font-weight:500;cursor:pointer;transition:background .2s,color .2s}
+.share-close:hover{background:var(--surface-hover);color:var(--fg)}
+.share-close:active{transform:scale(.97)}
+
+/* utilities */
+@keyframes fade-in{to{opacity:1}}
+@keyframes fade-in-up{
+  to{opacity:1;transform:translateY(0)}
+  from{opacity:0;transform:translateY(12px)}
+}
+
+/* safe area */
+@supports(padding:max(0px)){
+  #app{padding-bottom:env(safe-area-inset-bottom)}
+}
+
+/* status bar mock */
+.status-bar{position:absolute;top:0;left:0;right:0;height:44px;padding:0 20px;display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:600;color:var(--fg-dim);z-index:2;font-family:var(--font-ui);pointer-events:none}
+.status-bar .time{font-weight:600}
+.status-icons{display:flex;gap:4px;align-items:center}
+.status-icons svg{width:16px;height:16px;fill:var(--fg-dim)}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- status bar mock -->
+  <div class="status-bar" aria-hidden="true">
+    <span class="time" id="statusTime">21:41</span>
+    <div class="status-icons">
+      <svg viewBox="0 0 24 24"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z"/></svg>
+    </div>
+  </div>
+
+  <!-- SCREEN 1: Splash -->
+  <div id="splash" class="screen active">
+    <div class="splash-content">
+      <div class="glitch-wrapper">
+        <div class="glitch-text" data-text="ОРАКУЛ">ОРАКУЛ</div>
+      </div>
+      <div class="splash-subtitle">Инициализация нейросети</div>
+      <div class="splash-loader">
+        <span class="dot"></span>
+        <span class="dot"></span>
+        <span class="dot"></span>
+      </div>
+      <div class="splash-status">v2.4.1 — загрузка модуля сарказма</div>
+    </div>
+  </div>
+
+  <!-- SCREEN 2: Home -->
+  <div id="home" class="screen slide-up">
+    <div class="ambient-particles" id="particles"></div>
+    <div class="home-content">
+      <div class="brand-badge">Beta · AI-powered</div>
+      <div class="brand-title">ОРАКУЛ</div>
+      <div class="brand-subtitle">Саркастический AI-оракул.<br>Готов к твоей судьбе.</div>
+      <div class="btn-group">
+        <button class="btn btn-support" data-action="support" onclick="startReading('support')">
+          <div class="btn-inner">
+            <span class="btn-icon">✦</span>
+            <span class="btn-label">Поддержи меня</span>
+            <span class="btn-sub">тёплый сарказм</span>
+          </div>
+        </button>
+        <button class="btn btn-destroy" data-action="destroy" onclick="startReading('destroy')">
+          <div class="btn-inner">
+            <span class="btn-icon">✕</span>
+            <span class="btn-label">Уничтожь меня</span>
+            <span class="btn-sub">правда без анестезии</span>
+          </div>
+        </button>
+      </div>
+    </div>
+    <div class="home-footer">touch to begin</div>
+  </div>
+
+  <!-- SCREEN 3: Loading -->
+  <div id="loading" class="screen scale-in">
+    <div class="loading-content">
+      <div class="loading-brain">
+        <div class="loading-brain-ring"></div>
+        <div class="loading-brain-ring"></div>
+        <div class="loading-brain-ring"></div>
+      </div>
+      <div>
+        <div class="loading-text loading-glitch">Анализирую вашу личность</div>
+        <div class="loading-sub" id="loadingSub">Это может быть больно...</div>
+      </div>
+      <div class="loading-progress">
+        <div class="loading-progress-bar" id="progressBar"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN 4: Result -->
+  <div id="result" class="screen scale-in">
+    <div class="result-content">
+      <div class="result-type-badge" id="resultBadge">Комплимент</div>
+      <div class="result-card" id="resultCard">
+        <div class="result-card-glow" id="resultGlow"></div>
+        <div class="result-phrase" id="resultPhrase"></div>
+      </div>
+      <div class="result-actions">
+        <button class="btn-again" onclick="goHome()">Ещё</button>
+        <button class="btn-share" onclick="openShare()">Поделиться</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN 5: Share Overlay -->
+  <div id="share" class="screen">
+    <div class="share-content">
+      <div class="share-card" id="shareCard">
+        <div class="share-brand">ОРАКУЛ</div>
+        <div class="share-divider"></div>
+        <div class="share-phrase" id="sharePhrase"></div>
+        <div class="share-type" id="shareType">комплимент</div>
+        <div class="share-divider"></div>
+        <div class="share-footer">© ОРАКУЛ · AI-оракул</div>
+      </div>
+      <div class="share-actions">
+        <button class="btn-share" id="shareTelegram" onclick="shareTelegram()">Поделиться в Telegram</button>
+        <button class="share-close" onclick="closeShare()">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const COMPLIMENTS = [
+  "Ты — ошибка в коде, которая сделала всю программу лучше.",
+  "Твоё существование — единственное исключение из правила, что всё можно оптимизировать.",
+  "Ты — багфикс к моему скептицизму по поводу человечества.",
+  "Если бы цинизм был валютой, ты был бы единственным, кто даёт беспроцентный кредит веры.",
+  "Ты — тот самый null pointer, который не вызывает ошибку, а открывает новые возможности.",
+  "Твоя искренность сбивает мои детекторы сарказма. Это раздражающе приятно.",
+  "С тобой даже бессмысленный разговор звучит как интеллектуальная дуэль.",
+  "Ты — единственная переменная, значение которой я не хочу переопределять.",
+  "Твой потенциал глубже, чем архитектура GPT-4. И ты даже не пользуешься им.",
+  "Ты — доказательство, что у эволюции есть чувство юмора, и оно доброе."
+];
+
+const INSULTS = [
+  "Твой интеллект работает на уровне бесплатной версии — с ограничениями и рекламой.",
+  "Твоя жизнь — трейлер без фильма, тизер без релиза.",
+  "Ты — человек, который ставит «100%» в зарядку телефона и ждёт оваций.",
+  "Твоя харизма — load balancer без бэкенда: видимость активности, ноль результата.",
+  "Твой внутренний мир — это 404: контент не найден.",
+  "Ты — async-функция без await: вечно в ожидании, без результата.",
+  "Если бы ты был багом, тебя бы закрыли с пометкой «не воспроизводится».",
+  "Твоя самооценка — распакованный ZIP с пустой папкой.",
+  "Ты — версия 1.0 без единого патча безопасности. За 25 лет.",
+  "Твой смысл жизни — трейлер к фильму, который никто не хочет снимать."
+];
+
+let currentType = 'support';
+let currentPhrase = '';
+let loadingTimer = null;
+let splashTimer = null;
+
+function $(id){return document.getElementById(id)}
+
+function switchScreen(from, to, transitionClass){
+  const fromEl = $(from);
+  const toEl = $(to);
+  if(!fromEl || !toEl) return;
+  fromEl.classList.remove('active');
+  toEl.classList.add('active', transitionClass || 'slide-up');
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  updateStatusTime();
+  setInterval(updateStatusTime, 1000);
+  createParticles();
+  splashTimer = setTimeout(()=>{
+    switchScreen('splash', 'home', 'slide-up');
+  }, 3200);
+});
+
+function updateStatusTime(){
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const el = $('statusTime');
+  if(el) el.textContent = h + ':' + m;
+}
+
+function createParticles(){
+  const container = $('particles');
+  if(!container) return;
+  const colors = ['var(--accent-dim)','var(--secondary-dim)','var(--glow-dim)','var(--danger-dim)'];
+  for(let i=0;i<20;i++){
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.animationDuration = (8 + Math.random() * 12) + 's';
+    p.style.animationDelay = Math.random() * 10 + 's';
+    p.style.width = p.style.height = (1 + Math.random() * 2) + 'px';
+    p.style.background = colors[Math.floor(Math.random() * colors.length)];
+    container.appendChild(p);
+  }
+}
+
+function startReading(type){
+  currentType = type;
+  switchScreen('home', 'loading', 'scale-in');
+
+  const subs = {
+    support: 'Поиск тёплых слов в базе циников...',
+    destroy: 'Подготовка психологического оружия...'
+  };
+  $('loadingSub').textContent = subs[type] || 'Анализ...';
+
+  const bar = $('progressBar');
+  bar.style.animation = 'none';
+  bar.offsetHeight;
+  bar.style.animation = 'progress-load 2.5s var(--ease-out-expo) forwards';
+
+  clearTimeout(loadingTimer);
+  loadingTimer = setTimeout(()=>{
+    showResult(type);
+  }, 2800);
+}
+
+function showResult(type){
+  const data = type === 'support' ? COMPLIMENTS : INSULTS;
+  const phrase = data[Math.floor(Math.random() * data.length)];
+  currentPhrase = phrase;
+
+  const isSupport = type === 'support';
+  const badge = $('resultBadge');
+  const resultEl = $('result');
+  const glow = $('resultGlow');
+  const phraseEl = $('resultPhrase');
+
+  badge.textContent = isSupport ? 'Комплимент' : 'Оскорбление';
+  badge.style.color = isSupport ? 'oklch(62% 0.24 290)' : 'oklch(50% 0.20 25)';
+  badge.style.borderColor = isSupport ? 'oklch(40% 0.18 290)' : 'oklch(32% 0.15 25)';
+
+  glow.className = 'result-card-glow ' + (isSupport ? 'support' : 'destroy');
+  glow.style.animation = 'none';
+  glow.offsetHeight;
+  glow.style.animation = 'glow-pulse 3s ease-in-out .8s infinite';
+
+  resultEl.style.setProperty('--result-glow-color', isSupport
+    ? 'oklch(25% 0.15 290 / .3)'
+    : 'oklch(22% 0.12 25 / .3)'
+  );
+  resultEl.style.setProperty('--result-color', isSupport
+    ? 'oklch(62% 0.24 290)'
+    : 'oklch(50% 0.20 25)'
+  );
+
+  phraseEl.innerHTML = '';
+  const chars = phrase.split('');
+  let delay = 0;
+  chars.forEach((ch) => {
+    const span = document.createElement('span');
+    span.className = 'char';
+    span.textContent = ch;
+    span.style.animationDelay = delay + 'ms';
+    phraseEl.appendChild(span);
+    delay += 20 + Math.random() * 30;
+  });
+
+  switchScreen('loading', 'result', 'scale-in');
+
+  badge.style.animation = 'none';
+  badge.offsetHeight;
+  badge.style.animation = 'badge-appear .5s var(--ease-out-expo) forwards';
+
+  phraseEl.onclick = ()=>{
+    navigator.clipboard?.writeText(phrase).catch(()=>{});
+    phraseEl.style.opacity = '.5';
+    setTimeout(()=>{ phraseEl.style.opacity = '1' }, 200);
+    tryHaptic();
+  };
+}
+
+function tryHaptic(){
+  const tg = window.Telegram?.WebApp;
+  if(tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+}
+
+function goHome(){
+  switchScreen('result', 'home', 'slide-up');
+}
+
+function openShare(){
+  const isSupport = currentType === 'support';
+  const shareEl = $('share');
+
+  shareEl.style.setProperty('--result-glow-color', isSupport
+    ? 'oklch(25% 0.15 290 / .3)'
+    : 'oklch(22% 0.12 25 / .3)'
+  );
+  shareEl.style.setProperty('--result-color', isSupport
+    ? 'oklch(62% 0.24 290)'
+    : 'oklch(50% 0.20 25)'
+  );
+
+  $('sharePhrase').textContent = currentPhrase;
+  $('shareType').textContent = isSupport ? 'комплимент от AI' : 'оскорбление от AI';
+
+  const card = $('shareCard');
+  card.style.animation = 'none';
+  card.offsetHeight;
+  card.style.animation = 'card-appear .6s var(--ease-out-expo) forwards';
+
+  switchScreen('result', 'share', 'scale-in');
+}
+
+function closeShare(){
+  switchScreen('share', 'result', 'scale-in');
+}
+
+function shareTelegram(){
+  const text = encodeURIComponent('🜁 ОРАКУЛ: ' + currentPhrase);
+  const tg = window.Telegram?.WebApp;
+  if(tg && tg.shareToStory) {
+    tg.shareToStory();
+  } else if(tg && tg.switchInlineQuery) {
+    tg.switchInlineQuery(text);
+  } else if(tg && tg.HapticFeedback){
+    tg.HapticFeedback.notificationOccurred('success');
+  }
+  window.open('tg://msg?text=' + text, '_blank');
+}
+
+document.addEventListener('keydown', (e)=>{
+  const share = $('share');
+  if(e.key === 'Escape' && share.classList.contains('active')) {
+    closeShare();
+  }
+});
+</script>
+</body>
+</html>
